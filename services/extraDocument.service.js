@@ -1,5 +1,6 @@
 const axios = require("axios")
 const FormData = require("form-data")
+const { generateToken } = require("./id4face.service")
 
 const EXTRA_DOCUMENT_PATH = "/api/extra-document"
 
