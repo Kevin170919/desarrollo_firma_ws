@@ -66,13 +66,13 @@ async function submitRequestInformation(pdfBuffer, bearerToken, options = {}) {
   form.append("reason",      options.reason     || "Firma de contrato")
 
   // Opcionales
-  if (options.typeSign)   form.append("typeSign",   options.typeSign)   // "acreditada" | "simple"
+  if (options.typeSign)   form.append("typeSign",   options.typeSign)   
   if (options.nuiManager) form.append("nuiManager", options.nuiManager)
   if (options.clientCode) form.append("clientCode", options.clientCode)
 
   // Archivo principal 
   form.append("file", pdfBuffer, {
-    filename: options.filename || "Certificado_Chat_Sessions_doc.pdf",
+    filename: options.filename || "Certificado_Chat_Sessions.pdf",
     contentType: "application/pdf"
   })
 

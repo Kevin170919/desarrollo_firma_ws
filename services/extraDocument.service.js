@@ -37,7 +37,7 @@ async function fetchExtraDocumentByCedula(cedula, options = {}) {
       url,
       headers: {
         ...form.getHeaders(),
-        "Authorization": `Bearer ${token}`,  // ← este faltaba
+        "Authorization": `Bearer ${token}`, 
         ...(options.headers || {})
       },
       data: form,
