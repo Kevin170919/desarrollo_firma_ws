@@ -1,5 +1,5 @@
 require("dotenv").config()
-
+const path = require("path")
 const express = require("express")
 const cors = require("cors")
 
@@ -22,6 +22,7 @@ app.get("/", (req, res) => {
   })
 })
 
+app.use("/signed", express.static(path.join(__dirname, "signed")))
 app.use(verificationRoutes)
 app.use(callbackRoutes)
 app.use(requestRoutes)

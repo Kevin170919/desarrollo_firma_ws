@@ -1,15 +1,11 @@
-const express = require("express")
-const router = express.Router()
+const express  = require("express")
+const router   = express.Router()
 const sessions = require("../utils/sessions")
-const { fetchExtraDocumentByCedula } = require("../services/extraDocument.service")
-const fs = require("fs")
-const path = require("path")
-
-const {
-  authenticateOnboarding,
-  submitRequestInformation,
-  completeSign
-} = require("../services/requestInformation.service")
+const fs       = require("fs")
+const path     = require("path")
+const { fetchExtraDocumentByCedula }   = require("../services/extraDocument.service")
+const { generateSumilladoDocument }    = require("../services/pdfBuilder.service")
+const { firmarDocumento }              = require("../services/oneshot.service")
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Resultado biométrico
@@ -64,13 +60,7 @@ router.get("/session-status/:sessionId", (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Generar firma — flujo completo automático
-//    authenticate → request-information → complete-sign
-// POST /onboarding-request/:sessionId
-//
-// Body (JSON):
-//   nui, givenName, secondName, surname1, surname2,
-//   province, city, country, address, email, phoneNumber
-// ─────────────────────────────────────────────────────────────────────────────
+
 router.post("/onboarding-request/:sessionId", async (req, res) => {
   try {
     const { sessionId } = req.params
@@ -87,82 +77,68 @@ router.post("/onboarding-request/:sessionId", async (req, res) => {
       })
     }
 
-    // Validar campos requeridos
-    const required = ["nui", "givenName", "secondName", "surname1", "surname2", "province", "city", "email", "phoneNumber"]
+    const required = ["given_name", "surname_1", "surname_2", "nui", "email", "phoneNumber", "clientName", "wordToFind"]
     for (const field of required) {
       if (!req.body[field]) {
         return res.status(400).json({ success: false, message: `Campo requerido: ${field}` })
       }
     }
 
-    // Obtener extraDocument 
-    const contractPath = path.join(__dirname, "../assets/Certificado_Chat_Sessions.pdf")
-    if (!fs.existsSync(contractPath)) {
-      return res.status(500).json({ success: false, message: "Archivo Certificado_Chat_Sessions.pdf no encontrado" })
-    }
-    const pdfBuffer = fs.readFileSync(contractPath)
-
-    // ── Evidencia biométrica 
+    // ── Evidencia biométrica (extraDocument) ─────────────────────────────
     let evidenceBuffer = session.extraDocument?.buffer
     if (!evidenceBuffer) {
-      console.log("ExtraDocument no disponible en sesión, obteniendo...")
+      console.log("Obteniendo extraDocument...")
       evidenceBuffer = await fetchExtraDocumentByCedula(session.cedula)
       session.extraDocument = { id: session.cedula, buffer: evidenceBuffer, fetchedAt: new Date() }
     }
 
-    const baseUrl = process.env.REQUEST_INFORMATION_BASE_URL
-
-    // PASO 1: Autenticar en onboarding
-    console.log("=== PASO 1: Autenticando en onboarding ===")
-    const bearerToken = await authenticateOnboarding(baseUrl)
-
-    // PASO 2: Crear solicitud de firma
-    console.log("=== PASO 2: Enviando request-information ===")
-    const requestResponse = await submitRequestInformation(pdfBuffer, bearerToken, {
-      baseUrl,
+    // ── PASO 1: Generar sumillado con PDF Builder ─────────────────────────
+    console.log("=== GENERANDO SUMILLADO ===")
+    const sumilladoBuffer = await generateSumilladoDocument({
+      name:        req.body.given_name + " " + req.body.surname_1,
       nui:         req.body.nui,
-      givenName:   req.body.givenName,
-      secondName:  req.body.secondName,
-      surname1:    req.body.surname1,
-      surname2:    req.body.surname2,
-      province:    req.body.province,
-      city:        req.body.city,
-      country:     req.body.country    || "EC",
-      address:     req.body.address    || "",
-      email:       req.body.email,
-      phoneNumber: req.body.phoneNumber,
-      reason:      req.body.reason     || "Firma de contrato",
-      typeSign:    req.body.typeSign   || "acreditada",
-      nuiManager:  req.body.nuiManager,
-      clientCode:  req.body.clientCode,
-      evidenceBuffer 
+      clientName:  req.body.clientName,
+      wordToFind:  req.body.wordToFind
     })
 
-    if (!requestResponse?.requestId) {
-      return res.status(500).json({
-        success: false,
-        message: "No se obtuvo requestId del servicio de onboarding",
-        detail: requestResponse
-      })
-    }
+    // ── PASO 2: Firmar con Oneshot ────────────────────────────────────────
+    console.log("=== GENERANDO FIRMA ONESHOT ===")
+    const { signedPdfBuffer, signUuid, docId } = await firmarDocumento(
+      sumilladoBuffer,
+      evidenceBuffer,
+      {
+        given_name:          req.body.given_name,
+        surname_1:           req.body.surname_1,
+        surname_2:           req.body.surname_2,
+        serial_number:       req.body.nui,
+        email:               req.body.email,
+        mobile_phone_number: req.body.phoneNumber,
+        residence_address:   req.body.residence_address  || "Guayaquil",
+        residence_city:      req.body.residence_city     || "Guayaquil",
+        residence_province:  req.body.residence_province || "Guayas"
+      }
+    )
 
-    session.requestId = requestResponse.requestId
-    console.log("requestId obtenido:", requestResponse.requestId)
+    // ── Guardar documento firmado en disco (vía física) ───────────────────
+    const outputDir      = path.join(__dirname, "../signed")
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir)
+    const outputFilename = `firmado_${session.cedula}_${Date.now()}.pdf`
+    const outputPath     = path.join(outputDir, outputFilename)
+    fs.writeFileSync(outputPath, signedPdfBuffer)
+    console.log("Documento firmado guardado:", outputFilename)
 
-    // PASO 3: Ejecutar firma
-    console.log("=== PASO 3: Ejecutando complete-sign ===")
-    const signResponse = await completeSign(requestResponse.requestId, bearerToken, {
-      baseUrl,
-      clientIp: req.ip
-    })
+    // ── URL pública del documento firmado ─────────────────────────────────
+    const signedPdfUrl = `${process.env.SELF_URL}/signed/${outputFilename}`
+
+    // Guardar en sesión
+    session.signedDocument = { filename: outputFilename, url: signedPdfUrl, signUuid, docId, signedAt: new Date() }
 
     return res.json({
       success: true,
       sessionId,
-      requestId: requestResponse.requestId,
-      onboardingUrl: requestResponse.url,
-      detail: requestResponse.detail,
-      sign: signResponse
+      signUuid,
+      signedPdfUrl,      // ← URL pública para abrir/descargar el PDF
+      signedFilename: outputFilename
     })
 
   } catch (error) {
