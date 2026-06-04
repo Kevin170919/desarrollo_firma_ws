@@ -32,9 +32,21 @@ app.get("/my-ip", async (req, res) => {
     const { HttpsProxyAgent } = require("https-proxy-agent")
     const axios = require("axios")
     const agent = process.env.PROXY_URL ? new HttpsProxyAgent(process.env.PROXY_URL) : undefined
+    
+    console.log("PROXY_URL configurado:", process.env.PROXY_URL || "NO CONFIGURADO")
+    console.log("Usando proxy:", !!agent)
+    
     const response = await axios.get("https://api.ipify.org?format=json", { httpsAgent: agent })
-    res.json(response.data)
+    
+    console.log("IP obtenida:", response.data.ip)
+    
+    res.json({
+      ip: response.data.ip,
+      proxy_url: process.env.PROXY_URL ? "configurado" : "no configurado",
+      usando_proxy: !!agent
+    })
   } catch (error) {
+    console.error("Error /my-ip:", error.message)
     res.status(500).json({ error: error.message })
   }
 })
