@@ -27,6 +27,18 @@ app.use(verificationRoutes)
 app.use(callbackRoutes)
 app.use(requestRoutes)
 
+app.get("/my-ip", async (req, res) => {
+  try {
+    const { HttpsProxyAgent } = require("https-proxy-agent")
+    const axios = require("axios")
+    const agent = process.env.PROXY_URL ? new HttpsProxyAgent(process.env.PROXY_URL) : undefined
+    const response = await axios.get("https://api.ipify.org?format=json", { httpsAgent: agent })
+    res.json(response.data)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 const PORT = process.env.PORT || 3000
 
 app.listen(PORT, () => {
@@ -39,3 +51,4 @@ app.listen(PORT, () => {
   console.log("ID4FACE_AUTH_URL:", process.env.ID4FACE_AUTH_URL)
   console.log("ID4FACE_ENV:", process.env.ID4FACE_ENV)
 })
+
