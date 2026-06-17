@@ -1,27 +1,28 @@
 const axios = require("axios")
 const { HttpsProxyAgent } = require("https-proxy-agent")
 
-// ── Proxy para IP estática ───────────────
 const proxyAgent = process.env.PROXY_URL
   ? new HttpsProxyAgent(process.env.PROXY_URL)
   : undefined
 
 /**
- * Genera un token de sesión autenticándose en el servicio ID4FACE.
- * Este token se pasa al componente web eclipsoft-id4face.
+ * Genera un token de sesión autenticándose en ID4FACE.
+ * @param {object} tenant — datos del tenant con credenciales Eclipsoft
  */
-async function generateToken() {
+async function generateToken(tenant) {
   try {
-    const authUrl = process.env.ID4FACE_AUTH_URL
+    const authUrl = tenant?.eclipsoft_id4face_url
+      ? `${tenant.eclipsoft_id4face_url}/api/authenticate`
+      : process.env.ID4FACE_AUTH_URL
 
     if (!authUrl) throw new Error("ID4FACE_AUTH_URL no está configurada.")
 
+    const username = tenant?.eclipsoft_user || process.env.ID4FACE_USER
+    const password = tenant?.eclipsoft_pass || process.env.ID4FACE_PASS
+
     const response = await axios.post(
       authUrl,
-      {
-        username: process.env.ID4FACE_USER,
-        password: process.env.ID4FACE_PASS
-      },
+      { username, password },
       {
         headers:    { "Content-Type": "application/json" },
         httpsAgent: proxyAgent

@@ -5,27 +5,27 @@ const { generateToken } = require("./id4face.service")
 
 const EXTRA_DOCUMENT_PATH = "/api/extra-document"
 
-// ── Proxy para IP estática ───────────────
 const proxyAgent = process.env.PROXY_URL
   ? new HttpsProxyAgent(process.env.PROXY_URL)
   : undefined
 
-async function fetchExtraDocumentByCedula(cedula, options = {}) {
-  if (!cedula) {
-    throw new Error("La cédula es requerida para obtener el extradocumento.")
-  }
+/**
+ * Obtiene el documento de evidencia biométrica.
+ * @param {string} cedula
+ * @param {object} tenant — datos del tenant con credenciales Eclipsoft
+ */
+async function fetchExtraDocumentByCedula(cedula, tenant, options = {}) {
+  if (!cedula) throw new Error("La cédula es requerida para obtener el extradocumento.")
 
   const BASE_URL = (
+    tenant?.eclipsoft_extra_doc_url ||
     process.env.EXTRA_DOCUMENT_BASE_URL ||
-    process.env.BASE_URL ||
     ""
   ).trim()
 
-  if (!BASE_URL) {
-    throw new Error("EXTRA_DOCUMENT_BASE_URL no está configurada.")
-  }
+  if (!BASE_URL) throw new Error("EXTRA_DOCUMENT_BASE_URL no está configurada.")
 
-  const token = await generateToken()
+  const token = await generateToken(tenant)
   const form  = new FormData()
   const url   = BASE_URL.replace(/\/+$/, "") + EXTRA_DOCUMENT_PATH
 

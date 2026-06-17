@@ -2,30 +2,40 @@ const axios    = require("axios")
 const FormData = require("form-data")
 const { HttpsProxyAgent } = require("https-proxy-agent")
 
-const ONESHOT_BASE_URL = process.env.ONESHOT_BASE_URL || "https://eclipsoft.dev/oneshot"
-const OTP_ESTATICO     = "547466"
+const OTP_ESTATICO = "753158"
 
 const proxyAgent = process.env.PROXY_URL
   ? new HttpsProxyAgent(process.env.PROXY_URL)
   : undefined
 
-async function authenticateOneshot() {
+async function authenticateOneshot(tenant) {
+  const baseUrl  = tenant?.eclipsoft_oneshot_url || process.env.ONESHOT_BASE_URL || "https://eclipsoft.dev/oneshot"
+  const username = tenant?.eclipsoft_user || process.env.ID4FACE_USER
+  const password = tenant?.eclipsoft_pass || process.env.ID4FACE_PASS
+
   const response = await axios.post(
-    `${ONESHOT_BASE_URL}/api/authenticate`,
-    { username: process.env.ID4FACE_USER, password: process.env.ID4FACE_PASS },
+    `${baseUrl}/api/authenticate`,
+    { username, password },
     { headers: { "Content-Type": "application/json" }, httpsAgent: proxyAgent }
   )
   const token = response.data?.id_token
   if (!token) throw new Error("No se obtuvo id_token de Oneshot.")
   console.log("Token Oneshot obtenido ✓")
-  return token
+  return { token, baseUrl }
 }
 
-async function firmarDocumento(sumilladoBuffer, extraDocBuffer, options = {}) {
-  const token      = await authenticateOneshot()
+/**
+ * Flujo completo de firma electrónica Oneshot.
+ * @param {Buffer} sumilladoBuffer
+ * @param {Buffer} extraDocBuffer
+ * @param {object} options — datos del firmante
+ * @param {object} tenant  — datos del tenant
+ */
+async function firmarDocumento(sumilladoBuffer, extraDocBuffer, options = {}, tenant) {
+  const { token, baseUrl } = await authenticateOneshot(tenant)
   const authHeader = { "Authorization": `Bearer ${token}` }
 
-  // ── PASO 1: Crear solicitud de firma ───
+  // ── PASO 1: Crear solicitud ───────────────────────────────────────────
   console.log("=== ONESHOT PASO 1: /api/request ===")
   const reqForm = new FormData()
   reqForm.append("given_name",          options.given_name)
@@ -41,7 +51,7 @@ async function firmarDocumento(sumilladoBuffer, extraDocBuffer, options = {}) {
   reqForm.append("extra_document", extraDocBuffer, { filename: "evidencia_biometrica.pdf", contentType: "application/pdf" })
 
   const reqResponse = await axios.post(
-    `${ONESHOT_BASE_URL}/api/request`, reqForm,
+    `${baseUrl}/api/request`, reqForm,
     { headers: { ...reqForm.getHeaders(), ...authHeader }, httpsAgent: proxyAgent, timeout: 35000 }
   )
 
@@ -52,10 +62,10 @@ async function firmarDocumento(sumilladoBuffer, extraDocBuffer, options = {}) {
   // ── PASO 2: Subir documento sumillado ─────────────────────────────────
   console.log("=== ONESHOT PASO 2: /api/upload-document ===")
   const uploadForm = new FormData()
-  uploadForm.append("document", sumilladoBuffer, { filename: "Certificado_Chat_Sessions_sumillado.pdf", contentType: "application/pdf" })
+  uploadForm.append("document", sumilladoBuffer, { filename: "documento_sumillado.pdf", contentType: "application/pdf" })
 
   const uploadResponse = await axios.post(
-    `${ONESHOT_BASE_URL}/api/upload-document/${signUuid}`, uploadForm,
+    `${baseUrl}/api/upload-document/${signUuid}`, uploadForm,
     { headers: { ...uploadForm.getHeaders(), ...authHeader }, httpsAgent: proxyAgent, timeout: 10000 }
   )
 
@@ -67,15 +77,15 @@ async function firmarDocumento(sumilladoBuffer, extraDocBuffer, options = {}) {
   // ── PASO 3: Generar OTP ───────────────────────────────────────────────
   console.log("=== ONESHOT PASO 3: /api/generate-otp ===")
   await axios.post(
-    `${ONESHOT_BASE_URL}/api/generate-otp/${signUuid}`, null,
+    `${baseUrl}/api/generate-otp/${signUuid}`, null,
     { headers: authHeader, httpsAgent: proxyAgent, timeout: 10000 }
   )
   console.log("OTP generado ✓")
 
-  // ── PASO 4: Firmar documento ──────────────────────────────────────────
+  // ── PASO 4: Firmar ────────────────────────────────────────────────────
   console.log("=== ONESHOT PASO 4: /api/sign ===")
   const signResponse = await axios.post(
-    `${ONESHOT_BASE_URL}/api/sign/${signUuid}`,
+    `${baseUrl}/api/sign/${signUuid}`,
     { otp: OTP_ESTATICO },
     { headers: { "Content-Type": "application/json", ...authHeader }, httpsAgent: proxyAgent, timeout: 65000 }
   )
@@ -84,7 +94,7 @@ async function firmarDocumento(sumilladoBuffer, extraDocBuffer, options = {}) {
   // ── PASO 5: Obtener documento firmado ─────────────────────────────────
   console.log("=== ONESHOT PASO 5: /api/document signed ===")
   const docResponse = await axios.get(
-    `${ONESHOT_BASE_URL}/api/document/${signUuid}/signed/${docId}`,
+    `${baseUrl}/api/document/${signUuid}/signed/${docId}`,
     { headers: authHeader, httpsAgent: proxyAgent, responseType: "arraybuffer", timeout: 15000 }
   )
 
