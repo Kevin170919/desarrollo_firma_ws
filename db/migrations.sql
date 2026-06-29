@@ -88,6 +88,3 @@ CREATE INDEX idx_logs_cedula     ON logs(signer_cedula);
 CREATE INDEX idx_sessions_tenant ON sessions(tenant_id);
 CREATE INDEX idx_sessions_uuid   ON sessions(session_uuid);
 
-ALTER TABLE tenants
-  ADD COLUMN logo_base64 MEDIUMTEXT NULL DEFAULT NULL
-  AFTER eclipsoft_env;
