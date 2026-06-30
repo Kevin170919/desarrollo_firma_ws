@@ -19,7 +19,7 @@ router.post("/admin/tenants", adminMiddleware, async (req, res) => {
       eclipsoft_user, eclipsoft_pass,
       eclipsoft_id4face_url, eclipsoft_oneshot_url,
       eclipsoft_pdf_builder_url, eclipsoft_extra_doc_url,
-      eclipsoft_env, logo_base64
+      eclipsoft_env, whatsapp_number, logo_base64
     } = req.body
 
     if (!name || !username || !password || !eclipsoft_user || !eclipsoft_pass) {
@@ -32,8 +32,8 @@ router.post("/admin/tenants", adminMiddleware, async (req, res) => {
       `INSERT INTO tenants 
         (name, username, password_hash, eclipsoft_user, eclipsoft_pass,
          eclipsoft_id4face_url, eclipsoft_oneshot_url, eclipsoft_pdf_builder_url,
-         eclipsoft_extra_doc_url, eclipsoft_env, logo_base64)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         eclipsoft_extra_doc_url, eclipsoft_env, whatsapp_number, logo_base64)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name, username, password_hash, eclipsoft_user, eclipsoft_pass,
         eclipsoft_id4face_url     || "https://id4face.eclipsoft.com",
@@ -41,6 +41,7 @@ router.post("/admin/tenants", adminMiddleware, async (req, res) => {
         eclipsoft_pdf_builder_url || "https://services.eclipsoft.com/pdf-builder",
         eclipsoft_extra_doc_url   || "https://services.id4.ec",
         eclipsoft_env             || "prod",
+        whatsapp_number           || null,
         logo_base64               || null
       ]
     )
@@ -64,7 +65,7 @@ router.get("/admin/tenants", adminMiddleware, async (req, res) => {
   try {
     const tenants = await query(
       `SELECT id, name, username, eclipsoft_user, eclipsoft_env,
-              active, created_at,
+              active, created_at, whatsapp_number,
               (logo_base64 IS NOT NULL) AS has_logo
        FROM tenants ORDER BY created_at DESC`
     )
@@ -80,7 +81,7 @@ router.get("/admin/tenants/:id", adminMiddleware, async (req, res) => {
     const rows = await query(
       `SELECT id, name, username, eclipsoft_user, eclipsoft_env,
               eclipsoft_id4face_url, eclipsoft_oneshot_url,
-              eclipsoft_pdf_builder_url, eclipsoft_extra_doc_url,
+              eclipsoft_pdf_builder_url, eclipsoft_extra_doc_url, whatsapp_number,
               logo_base64,
               active, created_at
        FROM tenants WHERE id = ?`,
@@ -100,7 +101,7 @@ router.put("/admin/tenants/:id", adminMiddleware, async (req, res) => {
       name, password, eclipsoft_user, eclipsoft_pass,
       eclipsoft_id4face_url, eclipsoft_oneshot_url,
       eclipsoft_pdf_builder_url, eclipsoft_extra_doc_url,
-      eclipsoft_env, active, logo_base64
+      eclipsoft_env, active, whatsapp_number, logo_base64
     } = req.body
 
     let password_hash = undefined
@@ -118,7 +119,8 @@ router.put("/admin/tenants/:id", adminMiddleware, async (req, res) => {
         eclipsoft_extra_doc_url   = COALESCE(?, eclipsoft_extra_doc_url),
         eclipsoft_env             = COALESCE(?, eclipsoft_env),
         active                    = COALESCE(?, active),
-        logo_base64               = COALESCE(?, logo_base64)
+        logo_base64               = COALESCE(?, logo_base64),
+        whatsapp_number           = COALESCE(?, whatsapp_number)
        WHERE id = ?`,
       [
         name || null, password_hash || null,
@@ -128,6 +130,7 @@ router.put("/admin/tenants/:id", adminMiddleware, async (req, res) => {
         eclipsoft_env || null,
         active !== undefined ? active : null,
         logo_base64 || null,
+        whatsapp_number || null,
         req.params.id
       ]
     )

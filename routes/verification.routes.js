@@ -92,7 +92,7 @@ router.get("/verify/:sessionId", async (req, res) => {
     <eclipsoft-id4face dismissable oval limits></eclipsoft-id4face>
   </div>
   <script>
-    const WHATSAPP_RETURN_URL = "https://wa.me/${process.env.WHATSAPP_NUMBER}"
+    const WHATSAPP_RETURN_URL = "${session.tenantData?.whatsapp_number ? `https://wa.me/${session.tenantData.whatsapp_number}` : ""}"
     const LOGO_BASE64 = "${LOGO_BASE64}"
 
     window.addEventListener("load", async () => {
@@ -132,16 +132,35 @@ router.get("/verify/:sessionId", async (req, res) => {
             body: JSON.stringify({ sessionId: "${sessionId}", result: event.detail })
           })
           if (response.ok) {
-            document.querySelector("eclipsoft-id4face").style.display = "none"
-            const logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width:60px;margin-bottom:16px;" alt="Logo"/>' : ""
-            document.querySelector(".container").innerHTML =
-              logoHtml +
-              '<div style="font-size:3.5rem;margin-bottom:12px">✅</div>' +
-              '<h2 style="color:#f59e0b;margin-bottom:12px">¡Validación exitosa!</h2>' +
-              '<p style="color:#6b7280;margin-bottom:24px;font-size:0.95rem">Tu identidad ha sido verificada correctamente.</p>' +
-              '<p style="color:#9ca3af;font-size:0.85rem;margin-bottom:20px">Regresando a WhatsApp en unos segundos...</p>' +
-              '<a href="' + WHATSAPP_RETURN_URL + '" style="display:inline-block;background:#f59e0b;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Volver a WhatsApp</a>'
-            setTimeout(() => { window.location.href = WHATSAPP_RETURN_URL }, 3000)
+            const data = await response.json()
+            if (data.decision === "APPROVED") {
+              document.querySelector("eclipsoft-id4face").style.display = "none"
+              const logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width:60px;margin-bottom:16px;" alt="Logo"/>' : ""
+              const waButtonHtml = WHATSAPP_RETURN_URL
+                ? '<p style="color:#9ca3af;font-size:0.85rem;margin-bottom:20px">Regresando a WhatsApp en unos segundos...</p>' +
+                  '<a href="' + WHATSAPP_RETURN_URL + '" style="display:inline-block;background:#f59e0b;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Volver a WhatsApp</a>'
+                : ""
+              document.querySelector(".container").innerHTML =
+                logoHtml +
+                '<div style="font-size:3.5rem;margin-bottom:12px">✅</div>' +
+                '<h2 style="color:#f59e0b;margin-bottom:12px">¡Validación exitosa!</h2>' +
+                '<p style="color:#6b7280;margin-bottom:24px;font-size:0.95rem">Tu identidad ha sido verificada correctamente.</p>' +
+                waButtonHtml
+              if (WHATSAPP_RETURN_URL) {
+                setTimeout(() => { window.location.href = WHATSAPP_RETURN_URL }, 3000)
+              }
+            } else {
+              document.querySelector("eclipsoft-id4face").style.display = "none"
+              const waButtonHtml = WHATSAPP_RETURN_URL
+                ? '<a href="' + WHATSAPP_RETURN_URL + '" style="display:inline-block;background:#6b7280;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Volver a WhatsApp</a>'
+                : ""
+              document.querySelector(".container").innerHTML =
+                '<div style="font-size:3.5rem;margin-bottom:12px">❌</div>' +
+                '<h2 style="color:#dc2626;margin-bottom:12px">Validación no exitosa</h2>' +
+                '<p style="color:#6b7280;margin-bottom:24px;font-size:0.95rem">No pudimos verificar tu identidad. Por favor intenta nuevamente o contáctate con soporte.</p>' +
+                waButtonHtml
+              // No redirige automático: el usuario decide si vuelve a intentar o regresa manualmente
+            }
           } else {
             status.textContent = "Error procesando resultado."
           }

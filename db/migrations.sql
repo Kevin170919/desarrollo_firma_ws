@@ -5,7 +5,7 @@
 CREATE DATABASE IF NOT EXISTS bimetria CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE bimetria;
 
--- ── Tenants (clientes de la plataforma) ──────────────────────────────────────
+-- ── Tenants ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tenants (
   id                        INT AUTO_INCREMENT PRIMARY KEY,
   name                      VARCHAR(255)  NOT NULL,
@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS tenants (
   eclipsoft_pdf_builder_url VARCHAR(255)  NOT NULL DEFAULT 'https://services.eclipsoft.com/pdf-builder',
   eclipsoft_extra_doc_url   VARCHAR(255)  NOT NULL DEFAULT 'https://services.id4.ec',
   eclipsoft_env             VARCHAR(10)   NOT NULL DEFAULT 'prod',
+  whatsapp_number           VARCHAR(20)   NULL DEFAULT NULL,
   logo_base64               MEDIUMTEXT    NULL DEFAULT NULL,
+
 
   active                    TINYINT(1)    NOT NULL DEFAULT 1,
   created_at                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
