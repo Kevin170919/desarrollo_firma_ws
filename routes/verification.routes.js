@@ -74,7 +74,7 @@ router.get("/verify/:sessionId", async (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Validación Biométrica</title>
-  <script src="https://id4face.eclipsoft.com/dist/id4face@2.4.0.js" defer></script>
+  <script src="https://id4face.eclipsoft.com/dist/id4face@latest.js" crossorigin="anonymous" defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -113,17 +113,19 @@ router.get("/verify/:sessionId", async (req, res) => {
         status.textContent = "Inicializando biometría..."
         await id4face.load(config)
         status.textContent = "Por favor mire a la cámara"
-        try { await id4face.start() } catch (e) { console.warn("start() directo falló:", e) }
         id4face.addEventListener("ready", () => {
           status.textContent = "Por favor mire a la cámara"
           try { id4face.start() } catch (e) { console.error(e) }
-        })
+        }, { once: true })
       } catch (error) {
         console.error(error)
         status.textContent = "Error iniciando biometría: " + error.message
       }
 
+      let resultHandled = false
       id4face.addEventListener("result", async (event) => {
+        if (resultHandled) return
+        resultHandled = true
         status.textContent = "Procesando resultado..."
         try {
           const response = await fetch("${process.env.SELF_URL}/callback", {
