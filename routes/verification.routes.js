@@ -117,7 +117,8 @@ router.get("/verify/:sessionId", async (req, res) => {
           status.textContent = "Por favor mire a la cámara"
           try { id4face.start() } catch (e) { console.error(e) }
         }, { once: true })
-      } catch (error) {
+        try { await id4face.start() } catch (e) { console.warn("start() inicial:", e) }
+        } catch (error) {
         console.error(error)
         status.textContent = "Error iniciando biometría: " + error.message
       }
